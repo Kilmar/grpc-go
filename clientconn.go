@@ -395,6 +395,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 		cc.authority = target
 	}
 	waitC := make(chan error, 1)
+    var doneChan chan struct{}
 	go func() {
 		defer close(waitC)
 		if cc.dopts.balancer == nil && cc.sc.LB != nil {
@@ -416,7 +417,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 			ch := cc.dopts.balancer.Notify()
 			if ch != nil {
 				if cc.dopts.block {
-					doneChan := make(chan struct{})
+					doneChan = make(chan struct{})
 					go cc.lbWatcher(doneChan)
 					<-doneChan
 				} else {
@@ -433,6 +434,9 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 	}()
 	select {
 	case <-ctx.Done():
+        if doneChan != nil {
+            close(doneChan)
+        }
 		return nil, ctx.Err()
 	case err := <-waitC:
 		if err != nil {
